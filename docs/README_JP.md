@@ -1,3 +1,5 @@
+<!-- mcp-name: io.github.D4Vinci/Scrapling -->
+
 <h1 align="center">
     <a href="https://scrapling.readthedocs.io">
         <picture>
@@ -70,22 +72,79 @@ class MySpider(Spider):
 MySpider().start()
 ```
 
+<p align="center">
+    <a href="https://dataimpulse.com/?utm_source=scrapling&utm_medium=banner&utm_campaign=scrapling" target="_blank" style="display:flex; justify-content:center; padding:4px 0;">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/DataImpulse.png" alt="At DataImpulse, we specialize in developing custom proxy services for your business. Make requests from anywhere, collect data, and enjoy fast connections with our premium proxies." style="max-height:60px;">
+    </a>
+</p>
 
 # プラチナスポンサー
+<table>
+  <tr>
+    <td width="200">
+      <a href="https://hypersolutions.co/?utm_source=github&utm_medium=readme&utm_campaign=scrapling" target="_blank" title="Bot Protection Bypass API for Akamai, DataDome, Incapsula & Kasada">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/HyperSolutions.png">
+        <br />
+      </a>
+    </td>
+    <td> ScraplingはCloudflare Turnstileに対応。エンタープライズレベルの保護には、Hyper Solutionsが<b>Akamai</b>、<b>DataDome</b>、<b>Kasada</b>、<b>Incapsula</b>向けの有効なantibotトークンを生成するAPIエンドポイントを提供。シンプルなAPI呼び出しで、ブラウザ自動化不要。 <br /> 🚀 <a href="https://hypersolutions.co?utm_source=github&utm_medium=readme&utm_campaign=scrapling">
+        <b>登録</b>
+      </a> | 💬 <a href="https://discord.gg/akamai">
+        <b>Discord</b>
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td width="200">
+      <a href="https://birdproxies.com/t/scrapling" target="_blank" title="At Bird Proxies, we eliminate your pains such as banned IPs, geo restriction, and high costs so you can focus on your work.">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/BirdProxies.jpg">
+        <br />
+      </a>
+    </td>
+    <td>プロキシは複雑で高価であるべきではないと考え、BirdProxiesを構築しました。 <br /> 195以上のロケーションの高速レジデンシャル・ISPプロキシ、公正な価格設定、そして本物のサポート。 <br />
+      <b>ランディングページでFlappyBirdゲームを試して無料データをゲット！</b>
+      <br /> 🚀 <a href="https://birdproxies.com/t/scrapling">
+        <b>今すぐ試す</b>
+      </a> | 💬 <a href="https://discord.com/invite/birdproxies">
+        <b>Discord</b>
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td width="200">
+      <a href="https://evomi.com?utm_source=github&utm_medium=banner&utm_campaign=d4vinci-scrapling" target="_blank" title="Evomi is your Swiss Quality Proxy Provider, starting at $0.49/GB">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/evomi.png">
+        <br />
+      </a>
+    </td>
+    <td><a href="https://evomi.com?utm_source=github&utm_medium=banner&utm_campaign=d4vinci-scrapling"><b>Evomi</b></a>：レジデンシャルプロキシが $0.49/GB から。完全に偽装された Chromium によるスクレイピングブラウザ、レジデンシャル IP、自動 CAPTCHA 解決、アンチボットバイパス。</br>
+      <b>Scraper API で手間なく結果を取得。MCP と N8N の統合に対応。</b>
+    </td>
+  </tr>
+  <tr>
+    <td width="200">
+      <a href="https://tikhub.io/?ref=KarimShoair" target="_blank" title="Unlock the Power of Social Media Data & AI">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/TikHub.jpg">
+        <br />
+      </a>
+    </td>
+    <td>
+      <a href="https://tikhub.io/?ref=KarimShoair" target="_blank">TikHub.io</a> は TikTok、X、YouTube、Instagram を含む 16 以上のプラットフォームで 900 以上の安定した API を提供し、4,000 万以上のデータセットを保有。<br /> さらに <a href="https://ai.tikhub.io/?ref=KarimShoair" target="_blank">割引 AI モデル</a>も提供 — Claude、GPT、GEMINI など最大 71% オフ。
+    </td>
+  </tr>
+</table>
 
+<i><sub>ここに広告を表示したいですか？[こちら](https://github.com/sponsors/D4Vinci/sponsorships?tier_id=586646)をクリック</sub></i>
 # スポンサー
 
 <!-- sponsors -->
 
-<a href="https://www.scrapeless.com/en?utm_source=official&utm_term=scrapling" target="_blank" title="Effortless Web Scraping Toolkit for Business and Developers"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/scrapeless.jpg"></a>
 <a href="https://www.thordata.com/?ls=github&lk=github" target="_blank" title="Unblockable proxies and scraping infrastructure, delivering real-time, reliable web data to power AI models and workflows."><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/thordata.jpg"></a>
-<a href="https://evomi.com?utm_source=github&utm_medium=banner&utm_campaign=d4vinci-scrapling" target="_blank" title="Evomi is your Swiss Quality Proxy Provider, starting at $0.49/GB"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/evomi.png"></a>
 <a href="https://serpapi.com/?utm_source=scrapling" target="_blank" title="Scrape Google and other search engines with SerpApi"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/SerpApi.png"></a>
 <a href="https://visit.decodo.com/Dy6W0b" target="_blank" title="Try the Most Efficient Residential Proxies for Free"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/decodo.png"></a>
 <a href="https://petrosky.io/d4vinci" target="_blank" title="PetroSky delivers cutting-edge VPS hosting."><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/petrosky.png"></a>
 <a href="https://hasdata.com/?utm_source=github&utm_medium=banner&utm_campaign=D4Vinci" target="_blank" title="The web scraping service that actually beats anti-bot systems!"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/hasdata.png"></a>
-<a href="https://proxyempire.io/" target="_blank" title="Collect The Data Your Project Needs with the Best Residential Proxies"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/ProxyEmpire.png"></a>
-<a href="https://hypersolutions.co/?utm_source=github&utm_medium=readme&utm_campaign=scrapling" target="_blank" title="Bot Protection Bypass API for Akamai, DataDome, Incapsula & Kasada"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/HyperSolutions.png"></a>
+<a href="https://proxyempire.io/?ref=scrapling&utm_source=scrapling" target="_blank" title="Collect The Data Your Project Needs with the Best Residential Proxies"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/ProxyEmpire.png"></a>
 
 
 <a href="https://www.swiftproxy.net/" target="_blank" title="Unlock Reliable Proxy Services with Swiftproxy!"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/swiftproxy.png"></a>
@@ -361,10 +420,19 @@ pip install scrapling
     ```bash
     pip install "scrapling[fetchers]"
 
-    scrapling install
+    scrapling install           # normal install
+    scrapling install  --force  # force reinstall
     ```
 
     これにより、すべてのブラウザ、およびそれらのシステム依存関係とfingerprint操作依存関係がダウンロードされます。
+
+    または、コマンドを実行する代わりにコードからインストールすることもできます：
+    ```python
+    from scrapling.cli import install
+
+    install([], standalone_mode=False)          # normal install
+    install(["--force"], standalone_mode=False) # force reinstall
+    ```
 
 2. 追加機能：
    - MCPサーバー機能をインストール：
@@ -400,6 +468,18 @@ docker pull ghcr.io/d4vinci/scrapling:latest
 
 > [!CAUTION]
 > このライブラリは教育および研究目的のみで提供されています。このライブラリを使用することにより、地域および国際的なデータスクレイピングおよびプライバシー法に準拠することに同意したものとみなされます。著者および貢献者は、このソフトウェアの誤用について責任を負いません。常にウェブサイトの利用規約とrobots.txtファイルを尊重してください。
+
+## 🎓 引用
+研究目的で当ライブラリを使用された場合は、以下の参考文献で引用してください：
+```text
+  @misc{scrapling,
+    author = {Karim Shoair},
+    title = {Scrapling},
+    year = {2024},
+    url = {https://github.com/D4Vinci/Scrapling},
+    note = {An adaptive Web Scraping framework that handles everything from a single request to a full-scale crawl!}
+  }
+```
 
 ## ライセンス
 
