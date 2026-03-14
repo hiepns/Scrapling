@@ -1,15 +1,12 @@
 import pytest
-from pathlib import Path
 
 from scrapling.engines.toolbelt.custom import StatusText, Response
 from scrapling.engines.toolbelt.navigation import (
     construct_proxy_dict,
     create_intercept_handler,
     create_async_intercept_handler,
-    js_bypass_path,
 )
 from scrapling.engines.toolbelt.fingerprints import (
-    generate_convincing_referer,
     get_os_name,
     generate_headers
 )
@@ -203,43 +200,8 @@ class TestConstructProxyDict:
             construct_proxy_dict({"invalid": "structure"})
 
 
-class TestJsBypassPath:
-    """Test JavaScript bypass path utility"""
-
-    def test_js_bypass_path(self):
-        """Test getting JavaScript bypass file path"""
-        result = js_bypass_path("webdriver_fully.js")
-
-        assert isinstance(result, str)
-        assert result.endswith("webdriver_fully.js")
-        assert Path(result).exists()
-
-    def test_js_bypass_path_caching(self):
-        """Test that js_bypass_path is cached"""
-        result1 = js_bypass_path("webdriver_fully.js")
-        result2 = js_bypass_path("webdriver_fully.js")
-
-        assert result1 == result2
-
-
 class TestFingerprintFunctions:
     """Test fingerprint generation functions"""
-
-    def test_generate_convincing_referer(self):
-        """Test referer generation"""
-        url = "https://sub.example.com/page.html"
-        result = generate_convincing_referer(url)
-
-        assert result.startswith("https://www.google.com/search?q=")
-        assert "example" in result
-
-    def test_generate_convincing_referer_caching(self):
-        """Test referer generation caching"""
-        url = "https://example.com"
-        result1 = generate_convincing_referer(url)
-        result2 = generate_convincing_referer(url)
-
-        assert result1 == result2
 
     def test_get_os_name(self):
         """Test OS name detection"""
