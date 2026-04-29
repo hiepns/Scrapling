@@ -1,4 +1,5 @@
 from time import time
+from re import search as re_search
 from asyncio import sleep as asyncio_sleep, Lock
 from contextlib import contextmanager, asynccontextmanager
 
@@ -27,6 +28,7 @@ from scrapling.engines.toolbelt.navigation import (
 )
 from scrapling.core._types import (
     Any,
+    Awaitable,
     Dict,
     List,
     Set,
@@ -46,9 +48,8 @@ from scrapling.engines.constants import STEALTH_ARGS, HARMFUL_ARGS, DEFAULT_ARGS
 class SyncSession:
     _config: "PlaywrightConfig | StealthConfig"
     _context_options: Dict[str, Any]
-
-    def _build_context_with_proxy(self, proxy: Optional[ProxyType] = None) -> Dict[str, Any]:
-        raise NotImplementedError  # pragma: no cover
+    if TYPE_CHECKING:
+        _build_context_with_proxy: Callable[..., Dict[str, Any]]
 
     def __init__(self, max_pages: int = 1):
         self.max_pages = max_pages
@@ -146,21 +147,35 @@ class SyncSession:
             self._wait_for_networkidle(page)
 
     @staticmethod
-    def _create_response_handler(page_info: PageInfo[Page], response_container: List) -> Callable:
-        """Create a response handler that captures the final navigation response.
+    def _create_response_handler(
+        page_info: PageInfo[Page],
+        response_container: List,
+        xhr_pattern: Optional[str] = None,
+        xhr_container: Optional[List] = None,
+    ) -> Callable[[SyncPlaywrightResponse], None]:
+        """Create a response handler that captures the final navigation response and optionally XHR/fetch responses.
 
         :param page_info: The PageInfo object containing the page
         :param response_container: A list to store the final response (mutable container)
+        :param xhr_pattern: Optional regex pattern to match XHR/fetch response URLs
+        :param xhr_container: Optional list to store captured XHR/fetch responses
         :return: A callback function for page.on("response", ...)
         """
 
-        def handle_response(finished_response: SyncPlaywrightResponse):
+        def handle_response(finished_response: SyncPlaywrightResponse) -> None:
             if (
                 finished_response.request.resource_type == "document"
                 and finished_response.request.is_navigation_request()
                 and finished_response.request.frame == page_info.page.main_frame
             ):
                 response_container[0] = finished_response
+            elif (
+                xhr_pattern
+                and xhr_container is not None
+                and finished_response.request.resource_type in ("xhr", "fetch")
+                and re_search(xhr_pattern, finished_response.url)
+            ):
+                xhr_container.append(finished_response)
 
         return handle_response
 
@@ -181,11 +196,14 @@ class SyncSession:
             context_options = self._build_context_with_proxy(proxy)
             context: BrowserContext = self.browser.new_context(**context_options)
 
+            page_info = None
             try:
                 context = self._initialize_context(self._config, context)
                 page_info = self._get_page(timeout, extra_headers, disable_resources, blocked_domains, context=context)
                 yield page_info
             finally:
+                if page_info is not None and page_info in self.page_pool.pages:
+                    self.page_pool.pages.remove(page_info)
                 context.close()
         else:
             # Standard mode: use PagePool with persistent context
@@ -200,9 +218,8 @@ class SyncSession:
 class AsyncSession:
     _config: "PlaywrightConfig | StealthConfig"
     _context_options: Dict[str, Any]
-
-    def _build_context_with_proxy(self, proxy: Optional[ProxyType] = None) -> Dict[str, Any]:
-        raise NotImplementedError  # pragma: no cover
+    if TYPE_CHECKING:
+        _build_context_with_proxy: Callable[..., Dict[str, Any]]
 
     def __init__(self, max_pages: int = 1):
         self.max_pages = max_pages
@@ -317,21 +334,35 @@ class AsyncSession:
             await self._wait_for_networkidle(page)
 
     @staticmethod
-    def _create_response_handler(page_info: PageInfo[AsyncPage], response_container: List) -> Callable:
-        """Create an async response handler that captures the final navigation response.
+    def _create_response_handler(
+        page_info: PageInfo[AsyncPage],
+        response_container: List,
+        xhr_pattern: Optional[str] = None,
+        xhr_container: Optional[List] = None,
+    ) -> Callable[[AsyncPlaywrightResponse], Awaitable[None]]:
+        """Create an async response handler that captures the final navigation response and optionally XHR/fetch responses.
 
         :param page_info: The PageInfo object containing the page
         :param response_container: A list to store the final response (mutable container)
+        :param xhr_pattern: Optional regex pattern to match XHR/fetch response URLs
+        :param xhr_container: Optional list to store captured XHR/fetch responses
         :return: A callback function for page.on("response", ...)
         """
 
-        async def handle_response(finished_response: AsyncPlaywrightResponse):
+        async def handle_response(finished_response: AsyncPlaywrightResponse) -> None:
             if (
                 finished_response.request.resource_type == "document"
                 and finished_response.request.is_navigation_request()
                 and finished_response.request.frame == page_info.page.main_frame
             ):
                 response_container[0] = finished_response
+            elif (
+                xhr_pattern
+                and xhr_container is not None
+                and finished_response.request.resource_type in ("xhr", "fetch")
+                and re_search(xhr_pattern, finished_response.url)
+            ):
+                xhr_container.append(finished_response)
 
         return handle_response
 
@@ -352,6 +383,7 @@ class AsyncSession:
             context_options = self._build_context_with_proxy(proxy)
             context: AsyncBrowserContext = await self.browser.new_context(**context_options)
 
+            page_info = None
             try:
                 context = await self._initialize_context(self._config, context)
                 page_info = await self._get_page(
@@ -359,6 +391,8 @@ class AsyncSession:
                 )
                 yield page_info
             finally:
+                if page_info is not None and page_info in self.page_pool.pages:
+                    self.page_pool.pages.remove(page_info)
                 await context.close()
         else:
             # Standard mode: use PagePool with persistent context
@@ -419,7 +453,14 @@ class BaseSessionMixin:
         if not config.cdp_url:
             flags = self._browser_options["args"]
             if config.extra_flags or extra_flags:
-                flags = list(set(flags + (config.extra_flags or extra_flags)))
+                flags = list(set(tuple(flags) + tuple(config.extra_flags or extra_flags or ())))
+
+            if config.dns_over_https:
+                doh_flag = "--dns-over-https-templates=https://cloudflare-dns.com/dns-query"
+                if isinstance(flags, list):
+                    flags.append(doh_flag)
+                else:
+                    flags = list(flags) + [doh_flag]
 
             self._browser_options.update(
                 {
@@ -428,6 +469,8 @@ class BaseSessionMixin:
                     "channel": "chrome" if config.real_chrome else "chromium",
                 }
             )
+            if config.executable_path:
+                self._browser_options["executable_path"] = config.executable_path
 
             self._user_data_dir = config.user_data_dir
         else:
@@ -480,7 +523,7 @@ class StealthySessionMixin(BaseSessionMixin):
         config = cast(StealthConfig, self._config)
         flags: Tuple[str, ...] = tuple()
         if not config.cdp_url:
-            flags = DEFAULT_ARGS + STEALTH_ARGS
+            flags = tuple(DEFAULT_ARGS) + tuple(STEALTH_ARGS)
 
             if config.block_webrtc:
                 flags += (

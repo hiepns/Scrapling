@@ -4,9 +4,9 @@ Not sure where to start? Pick the path that matches what you're trying to do:
 
 | I want to... | Start here |
 |:---|:---|
-| **Parse HTML** I already have | [Querying elements](parsing/selection.md) — CSS, XPath, and text-based selection |
+| **Parse HTML** I already have | [Querying elements](parsing/selection.md): CSS, XPath, and text-based selection |
 | **Quickly scrape a page** and prototype | Pick a [fetcher](fetching/choosing.md) and test right away, or launch the [interactive shell](cli/interactive-shell.md) |
-| **Build a crawler** that scales | [Spiders](spiders/getting-started.md) — concurrent, multi-session crawls with pause/resume |
+| **Build a crawler** that scales | [Spiders](spiders/getting-started.md): concurrent, multi-session crawls with pause/resume |
 | **Scrape without writing code** | [CLI extract commands](cli/extract-commands.md) or hook up the [MCP server](ai/mcp-server.md) to your favourite AI tool |
 | **Migrate** from another library | [From BeautifulSoup](tutorials/migrating_from_beautifulsoup.md) or [Scrapy comparison](spiders/architecture.md#comparison-with-scrapy) |
 
@@ -264,7 +264,7 @@ page = Fetcher.get('https://scrapling.requestcatcher.com/get', impersonate="chro
 With that out of the way, here's how to do all HTTP methods:
 ```python
 >>> from scrapling.fetchers import Fetcher
->>> page = Fetcher.get('https://scrapling.requestcatcher.com/get', stealthy_headers=True, follow_redirects=True)
+>>> page = Fetcher.get('https://scrapling.requestcatcher.com/get', stealthy_headers=True)
 >>> page = Fetcher.post('https://scrapling.requestcatcher.com/post', data={'key': 'value'}, proxy='http://username:password@localhost:8030')
 >>> page = Fetcher.put('https://scrapling.requestcatcher.com/put', data={'key': 'value'})
 >>> page = Fetcher.delete('https://scrapling.requestcatcher.com/delete')
@@ -272,7 +272,7 @@ With that out of the way, here's how to do all HTTP methods:
 For Async requests, you will replace the import like below:
 ```python
 >>> from scrapling.fetchers import AsyncFetcher
->>> page = await AsyncFetcher.get('https://scrapling.requestcatcher.com/get', stealthy_headers=True, follow_redirects=True)
+>>> page = await AsyncFetcher.get('https://scrapling.requestcatcher.com/get', stealthy_headers=True)
 >>> page = await AsyncFetcher.post('https://scrapling.requestcatcher.com/post', data={'key': 'value'}, proxy='http://username:password@localhost:8030')
 >>> page = await AsyncFetcher.put('https://scrapling.requestcatcher.com/put', data={'key': 'value'})
 >>> page = await AsyncFetcher.delete('https://scrapling.requestcatcher.com/delete')
@@ -280,7 +280,7 @@ For Async requests, you will replace the import like below:
 
 !!! note "Notes:"
 
-    1. You have the `stealthy_headers` argument, which, when enabled, makes requests to generate real browser headers and use them, including a referer header, as if this request came from a Google search of this domain. It's enabled by default.
+    1. You have the `stealthy_headers` argument, which, when enabled, makes requests to generate real browser headers and use them, including a Google referer header. It's enabled by default.
     2. The `impersonate` argument lets you fake the TLS fingerprint for a specific browser version.
     3. There's also the `http3` argument, which, when enabled, makes the fetcher use HTTP/3 for requests, which makes your requests more authentic
 
@@ -320,8 +320,7 @@ Some of the things it does:
 3. It isolates JS execution, removes many Playwright fingerprints, and stops detection through some of the known behaviors that bots do.
 4. It generates canvas noise to prevent fingerprinting through canvas.
 5. It automatically patches known methods to detect running in headless mode and provides an option to defeat timezone mismatch attacks.
-6. It makes requests look as if they came from Google's search page of the requested website.
-7. and other anti-protection options...
+6. and other anti-protection options...
 
 ```python
 >>> from scrapling.fetchers import StealthyFetcher

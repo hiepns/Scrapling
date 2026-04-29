@@ -3,26 +3,20 @@ from re import compile as re_compile
 from time import sleep as time_sleep
 from asyncio import sleep as asyncio_sleep
 
-from playwright.sync_api import Locator, Page, BrowserContext
-from playwright.async_api import (
-    Page as async_Page,
-    Locator as AsyncLocator,
-    BrowserContext as AsyncBrowserContext,
-)
+from playwright.sync_api import Locator, Page
+from playwright.async_api import Page as async_Page, Locator as AsyncLocator
 from patchright.sync_api import sync_playwright
 from patchright.async_api import async_playwright
 
 from scrapling.core.utils import log
-from scrapling.core._types import Any, Optional, ProxyType, Unpack
+from scrapling.core._types import Any, List, Optional, ProxyType, Unpack
 from scrapling.engines.toolbelt.proxy_rotation import is_proxy_error
 from scrapling.engines.toolbelt.convertor import Response, ResponseFactory
-from scrapling.engines.toolbelt.fingerprints import generate_convincing_referer
-from scrapling.engines._browsers._config_tools import _compiled_stealth_scripts
 from scrapling.engines._browsers._types import StealthSession, StealthFetchParams
 from scrapling.engines._browsers._base import SyncSession, AsyncSession, StealthySessionMixin
 from scrapling.engines._browsers._validators import validate_fetch as _validate, StealthConfig
 
-__CF_PATTERN__ = re_compile("challenges.cloudflare.com/cdn-cgi/challenge-platform/.*")
+__CF_PATTERN__ = re_compile(r"^https?://challenges\.cloudflare\.com/cdn-cgi/challenge-platform/.*")
 
 
 class StealthySession(SyncSession, StealthySessionMixin):
@@ -53,7 +47,8 @@ class StealthySession(SyncSession, StealthySessionMixin):
         :param network_idle: Wait for the page until there are no network connections for at least 500 ms.
         :param timeout: The timeout in milliseconds that is used in all operations and waits through the page. The default is 30,000
         :param wait: The time (milliseconds) the fetcher will wait after everything finishes before closing the page and returning the ` Response ` object.
-        :param page_action: Added for automation. A function that takes the `page` object and does the automation you need.
+        :param page_action: Added for automation. A function that takes the `page` object, runs after navigation, and does the automation you need.
+        :param page_setup: A function that takes the `page` object, runs before navigation. Use it to register event listeners or routes that must be set up before the page loads.
         :param wait_selector: Wait for a specific CSS selector to be in a specific state.
         :param init_script: An absolute path to a JavaScript file to be executed on page creation for all pages in this session.
         :param locale: Specify user locale, for example, `en-GB`, `de-DE`, etc. Locale will affect navigator.language value, Accept-Language request header value as well as number and date formatting
@@ -67,8 +62,8 @@ class StealthySession(SyncSession, StealthySessionMixin):
         :param allow_webgl: Enabled by default. Disabling it disables WebGL and WebGL 2.0 support entirely. Disabling WebGL is not recommended as many WAFs now check if WebGL is enabled.
         :param load_dom: Enabled by default, wait for all JavaScript on page(s) to fully load and execute.
         :param cdp_url: Instead of launching a new browser instance, connect to this CDP URL to control real browsers through CDP.
-        :param google_search: Enabled by default, Scrapling will set the referer header to be as if this request came from a Google search of this website's domain name.
-        :param extra_headers: A dictionary of extra headers to add to the request. _The referer set by the `google_search` argument takes priority over the referer set here if used together._
+        :param google_search: Enabled by default, Scrapling will set a Google referer header.
+        :param extra_headers: A dictionary of extra headers to add to the request. _The referer set by `google_search` takes priority over the referer set here if used together._
         :param proxy: The proxy to be used with requests, it can be a string or a dictionary with the keys 'server', 'username', and 'password' only.
         :param user_data_dir: Path to a User Data Directory, which stores browser session data like cookies and local storage. The default is to create a temporary directory.
         :param extra_flags: A list of additional browser flags to pass to the browser on launch.
@@ -109,14 +104,6 @@ class StealthySession(SyncSession, StealthySessionMixin):
         else:
             raise RuntimeError("Session has been already started")
 
-    def _initialize_context(self, config, ctx: BrowserContext) -> BrowserContext:
-        """Initialize the browser context."""
-        for script in _compiled_stealth_scripts():
-            ctx.add_init_script(script=script)
-
-        ctx = super()._initialize_context(config, ctx)
-        return ctx
-
     def _cloudflare_solver(self, page: Page) -> None:  # pragma: no cover
         """Solve the cloudflare challenge displayed on the playwright page passed
 
@@ -127,7 +114,7 @@ class StealthySession(SyncSession, StealthySessionMixin):
         challenge_type = self._detect_cloudflare(ResponseFactory._get_page_content(page))
         if not challenge_type:
             log.error("No Cloudflare challenge found.")
-            return
+            return None
         else:
             log.info(f'The turnstile version discovered is "{challenge_type}"')
             if challenge_type == "non-interactive":
@@ -136,7 +123,7 @@ class StealthySession(SyncSession, StealthySessionMixin):
                     page.wait_for_timeout(1000)
                     page.wait_for_load_state()
                 log.info("Cloudflare captcha is solved")
-                return
+                return None
 
             else:
                 box_selector = "#cf_turnstile div, #cf-turnstile div, .turnstile>div>div"
@@ -161,7 +148,7 @@ class StealthySession(SyncSession, StealthySessionMixin):
                 if not iframe or not outer_box:
                     if "<title>Just a moment...</title>" not in (ResponseFactory._get_page_content(page)):
                         log.info("Cloudflare captcha is solved")
-                        return
+                        return None
 
                     outer_box = page.locator(box_selector).last.bounding_box()
 
@@ -171,32 +158,39 @@ class StealthySession(SyncSession, StealthySessionMixin):
                 # Move the mouse to the center of the window, then press and hold the left mouse button
                 page.mouse.click(captcha_x, captcha_y, delay=randint(100, 200), button="left")
                 self._wait_for_networkidle(page)
-                if iframe is not None:
-                    # Wait for the frame to be removed from the page (with 30s timeout = 300 iterations * 100 ms)
+
+                if challenge_type != "embedded":
                     attempts = 0
-                    while iframe in page.frames:
-                        if attempts >= 300:
-                            log.info("Cloudflare iframe didn't disappear after 30s, continuing...")
+                    while "<title>Just a moment...</title>" in ResponseFactory._get_page_content(page):
+                        # Wait for the page
+                        if attempts >= 100:
+                            log.info("Cloudflare page didn't disappear after 10s, continuing...")
                             break
                         page.wait_for_timeout(100)
                         attempts += 1
-                if challenge_type != "embedded":
-                    page.locator(box_selector).last.wait_for(state="detached")
-                    page.locator(".zone-name-title").wait_for(state="hidden")
+
+                    # page.locator(box_selector).last.wait_for(state="detached")
+                    # page.locator(".zone-name-title").wait_for(state="hidden")
+
                 self._wait_for_page_stability(page, True, False)
 
-                log.info("Cloudflare captcha is solved")
-                return
+                if "<title>Just a moment...</title>" not in (ResponseFactory._get_page_content(page)):
+                    log.info("Cloudflare captcha is solved")
+                    return None
+                else:
+                    log.info("Looks like Cloudflare captcha is still present, solving again")
+                    return self._cloudflare_solver(page)
 
     def fetch(self, url: str, **kwargs: Unpack[StealthFetchParams]) -> Response:
         """Opens up the browser and do your request based on your chosen options.
 
         :param url: The Target url.
-        :param google_search: Enabled by default, Scrapling will set the referer header to be as if this request came from a Google search of this website's domain name.
+        :param google_search: Enabled by default, Scrapling will set a Google referer header.
         :param timeout: The timeout in milliseconds that is used in all operations and waits through the page. The default is 30,000
         :param wait: The time (milliseconds) the fetcher will wait after everything finishes before closing the page and returning the ` Response ` object.
-        :param page_action: Added for automation. A function that takes the `page` object and does the automation you need.
-        :param extra_headers: A dictionary of extra headers to add to the request. _The referer set by the `google_search` argument takes priority over the referer set here if used together._
+        :param page_action: Added for automation. A function that takes the `page` object, runs after navigation, and does the automation you need.
+        :param page_setup: A function that takes the `page` object, runs before navigation. Use it to register event listeners or routes that must be set up before the page loads.
+        :param extra_headers: A dictionary of extra headers to add to the request. _The referer set by `google_search` takes priority over the referer set here if used together._
         :param disable_resources: Drop requests for unnecessary resources for a speed boost.
             Requests dropped are of type `font`, `image`, `media`, `beacon`, `object`, `imageset`, `texttrack`, `websocket`, `csp_report`, and `stylesheet`.
         :param blocked_domains: A set of domain names to block requests to. Subdomains are also matched (e.g., ``"example.com"`` blocks ``"sub.example.com"`` too).
@@ -217,9 +211,7 @@ class StealthySession(SyncSession, StealthySessionMixin):
 
         request_headers_keys = {h.lower() for h in params.extra_headers.keys()} if params.extra_headers else set()
         referer = (
-            generate_convincing_referer(url)
-            if (params.google_search and "referer" not in request_headers_keys)
-            else None
+            "https://www.google.com/" if (params.google_search and "referer" not in request_headers_keys) else None
         )
 
         for attempt in range(self._config.retries):
@@ -232,9 +224,24 @@ class StealthySession(SyncSession, StealthySessionMixin):
             with self._page_generator(
                 params.timeout, params.extra_headers, params.disable_resources, proxy, params.blocked_domains
             ) as page_info:
-                final_response = [None]
+                final_response: List = [None]
+                xhr_captured: List = []
                 page = page_info.page
-                page.on("response", self._create_response_handler(page_info, final_response))
+                page.on(
+                    "response",
+                    self._create_response_handler(
+                        page_info,
+                        final_response,
+                        xhr_pattern=self._config.capture_xhr,
+                        xhr_container=xhr_captured,
+                    ),
+                )
+
+                if params.page_setup:
+                    try:
+                        params.page_setup(page)
+                    except Exception as e:  # pragma: no cover
+                        log.error(f"Error executing page_setup: {e}")
 
                 try:
                     first_response = page.goto(url, referer=referer)
@@ -265,7 +272,12 @@ class StealthySession(SyncSession, StealthySessionMixin):
                     page.wait_for_timeout(params.wait)
 
                     response = ResponseFactory.from_playwright_response(
-                        page, first_response, final_response[0], params.selector_config, meta={"proxy": proxy}
+                        page,
+                        first_response,
+                        final_response[0],
+                        params.selector_config,
+                        meta={"proxy": proxy},
+                        xhr_captured=xhr_captured,
                     )
                     return response
 
@@ -311,7 +323,8 @@ class AsyncStealthySession(AsyncSession, StealthySessionMixin):
         :param network_idle: Wait for the page until there are no network connections for at least 500 ms.
         :param timeout: The timeout in milliseconds that is used in all operations and waits through the page. The default is 30,000
         :param wait: The time (milliseconds) the fetcher will wait after everything finishes before closing the page and returning the ` Response ` object.
-        :param page_action: Added for automation. A function that takes the `page` object and does the automation you need.
+        :param page_action: Added for automation. A function that takes the `page` object, runs after navigation, and does the automation you need.
+        :param page_setup: A function that takes the `page` object, runs before navigation. Use it to register event listeners or routes that must be set up before the page loads.
         :param wait_selector: Wait for a specific CSS selector to be in a specific state.
         :param init_script: An absolute path to a JavaScript file to be executed on page creation for all pages in this session.
         :param locale: Specify user locale, for example, `en-GB`, `de-DE`, etc. Locale will affect navigator.language value, Accept-Language request header value as well as number and date formatting
@@ -325,8 +338,8 @@ class AsyncStealthySession(AsyncSession, StealthySessionMixin):
         :param allow_webgl: Enabled by default. Disabling it disables WebGL and WebGL 2.0 support entirely. Disabling WebGL is not recommended as many WAFs now check if WebGL is enabled.
         :param load_dom: Enabled by default, wait for all JavaScript on page(s) to fully load and execute.
         :param cdp_url: Instead of launching a new browser instance, connect to this CDP URL to control real browsers through CDP.
-        :param google_search: Enabled by default, Scrapling will set the referer header to be as if this request came from a Google search of this website's domain name.
-        :param extra_headers: A dictionary of extra headers to add to the request. _The referer set by the `google_search` argument takes priority over the referer set here if used together._
+        :param google_search: Enabled by default, Scrapling will set a Google referer header.
+        :param extra_headers: A dictionary of extra headers to add to the request. _The referer set by `google_search` takes priority over the referer set here if used together._
         :param proxy: The proxy to be used with requests, it can be a string or a dictionary with the keys 'server', 'username', and 'password' only.
         :param user_data_dir: Path to a User Data Directory, which stores browser session data like cookies and local storage. The default is to create a temporary directory.
         :param extra_flags: A list of additional browser flags to pass to the browser on launch.
@@ -366,14 +379,6 @@ class AsyncStealthySession(AsyncSession, StealthySessionMixin):
         else:
             raise RuntimeError("Session has been already started")
 
-    async def _initialize_context(self, config: Any, ctx: AsyncBrowserContext) -> AsyncBrowserContext:
-        """Initialize the browser context."""
-        for script in _compiled_stealth_scripts():
-            await ctx.add_init_script(script=script)
-
-        ctx = await super()._initialize_context(config, ctx)
-        return ctx
-
     async def _cloudflare_solver(self, page: async_Page) -> None:  # pragma: no cover
         """Solve the cloudflare challenge displayed on the playwright page passed
 
@@ -384,7 +389,7 @@ class AsyncStealthySession(AsyncSession, StealthySessionMixin):
         challenge_type = self._detect_cloudflare(await ResponseFactory._get_async_page_content(page))
         if not challenge_type:
             log.error("No Cloudflare challenge found.")
-            return
+            return None
         else:
             log.info(f'The turnstile version discovered is "{challenge_type}"')
             if challenge_type == "non-interactive":
@@ -393,7 +398,7 @@ class AsyncStealthySession(AsyncSession, StealthySessionMixin):
                     await page.wait_for_timeout(1000)
                     await page.wait_for_load_state()
                 log.info("Cloudflare captcha is solved")
-                return
+                return None
 
             else:
                 box_selector = "#cf_turnstile div, #cf-turnstile div, .turnstile>div>div"
@@ -418,7 +423,7 @@ class AsyncStealthySession(AsyncSession, StealthySessionMixin):
                 if not iframe or not outer_box:
                     if "<title>Just a moment...</title>" not in (await ResponseFactory._get_async_page_content(page)):
                         log.info("Cloudflare captcha is solved")
-                        return
+                        return None
 
                     outer_box = await page.locator(box_selector).last.bounding_box()
 
@@ -428,32 +433,39 @@ class AsyncStealthySession(AsyncSession, StealthySessionMixin):
                 # Move the mouse to the center of the window, then press and hold the left mouse button
                 await page.mouse.click(captcha_x, captcha_y, delay=randint(100, 200), button="left")
                 await self._wait_for_networkidle(page)
-                if iframe is not None:
-                    # Wait for the frame to be removed from the page (with 30s timeout = 300 iterations * 100 ms)
+
+                if challenge_type != "embedded":
                     attempts = 0
-                    while iframe in page.frames:
-                        if attempts >= 300:
-                            log.info("Cloudflare iframe didn't disappear after 30s, continuing...")
+                    while "<title>Just a moment...</title>" in (await ResponseFactory._get_async_page_content(page)):
+                        # Wait for the page
+                        if attempts >= 100:
+                            log.info("Cloudflare page didn't disappear after 10s, continuing...")
                             break
                         await page.wait_for_timeout(100)
                         attempts += 1
-                if challenge_type != "embedded":
-                    await page.locator(box_selector).last.wait_for(state="detached")
-                    await page.locator(".zone-name-title").wait_for(state="hidden")
+
+                    # await page.locator(box_selector).last.wait_for(state="detached")
+                    # await page.locator(".zone-name-title").wait_for(state="hidden")
+
                 await self._wait_for_page_stability(page, True, False)
 
-                log.info("Cloudflare captcha is solved")
-                return
+                if "<title>Just a moment...</title>" not in (await ResponseFactory._get_async_page_content(page)):
+                    log.info("Cloudflare captcha is solved")
+                    return None
+                else:
+                    log.info("Looks like Cloudflare captcha is still present, solving again")
+                    return await self._cloudflare_solver(page)
 
     async def fetch(self, url: str, **kwargs: Unpack[StealthFetchParams]) -> Response:
         """Opens up the browser and do your request based on your chosen options.
 
         :param url: The Target url.
-        :param google_search: Enabled by default, Scrapling will set the referer header to be as if this request came from a Google search of this website's domain name.
+        :param google_search: Enabled by default, Scrapling will set a Google referer header.
         :param timeout: The timeout in milliseconds that is used in all operations and waits through the page. The default is 30,000
         :param wait: The time (milliseconds) the fetcher will wait after everything finishes before closing the page and returning the ` Response ` object.
-        :param page_action: Added for automation. A function that takes the `page` object and does the automation you need.
-        :param extra_headers: A dictionary of extra headers to add to the request. _The referer set by the `google_search` argument takes priority over the referer set here if used together._
+        :param page_action: Added for automation. A function that takes the `page` object, runs after navigation, and does the automation you need.
+        :param page_setup: A function that takes the `page` object, runs before navigation. Use it to register event listeners or routes that must be set up before the page loads.
+        :param extra_headers: A dictionary of extra headers to add to the request. _The referer set by `google_search` takes priority over the referer set here if used together._
         :param disable_resources: Drop requests for unnecessary resources for a speed boost.
             Requests dropped are of type `font`, `image`, `media`, `beacon`, `object`, `imageset`, `texttrack`, `websocket`, `csp_report`, and `stylesheet`.
         :param blocked_domains: A set of domain names to block requests to. Subdomains are also matched (e.g., ``"example.com"`` blocks ``"sub.example.com"`` too).
@@ -475,9 +487,7 @@ class AsyncStealthySession(AsyncSession, StealthySessionMixin):
 
         request_headers_keys = {h.lower() for h in params.extra_headers.keys()} if params.extra_headers else set()
         referer = (
-            generate_convincing_referer(url)
-            if (params.google_search and "referer" not in request_headers_keys)
-            else None
+            "https://www.google.com/" if (params.google_search and "referer" not in request_headers_keys) else None
         )
 
         for attempt in range(self._config.retries):
@@ -490,9 +500,24 @@ class AsyncStealthySession(AsyncSession, StealthySessionMixin):
             async with self._page_generator(
                 params.timeout, params.extra_headers, params.disable_resources, proxy, params.blocked_domains
             ) as page_info:
-                final_response = [None]
+                final_response: List = [None]
+                xhr_captured: List = []
                 page = page_info.page
-                page.on("response", self._create_response_handler(page_info, final_response))
+                page.on(
+                    "response",
+                    self._create_response_handler(
+                        page_info,
+                        final_response,
+                        xhr_pattern=self._config.capture_xhr,
+                        xhr_container=xhr_captured,
+                    ),
+                )
+
+                if params.page_setup:
+                    try:
+                        await params.page_setup(page)
+                    except Exception as e:  # pragma: no cover
+                        log.error(f"Error executing page_setup: {e}")
 
                 try:
                     first_response = await page.goto(url, referer=referer)
@@ -523,7 +548,12 @@ class AsyncStealthySession(AsyncSession, StealthySessionMixin):
                     await page.wait_for_timeout(params.wait)
 
                     response = await ResponseFactory.from_async_playwright_response(
-                        page, first_response, final_response[0], params.selector_config, meta={"proxy": proxy}
+                        page,
+                        first_response,
+                        final_response[0],
+                        params.selector_config,
+                        meta={"proxy": proxy},
+                        xhr_captured=xhr_captured,
                     )
                     return response
 

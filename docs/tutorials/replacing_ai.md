@@ -8,18 +8,18 @@ In this article, we will discuss these common issues, why companies are shifting
 
 If you have been doing Web Scraping for a long time, you probably noticed that there are repeating problems with Web Scraping, like:
 
-1. **Rapidly changing website structures** — Sites frequently update their DOM structures, breaking static XPath/CSS selectors.
-2. **Unstable selectors** — Class names and IDs often change or use randomly generated values that break scrapers or make scraping these websites difficult.
-3. **Increasingly complex anti-bot measures** — CAPTCHA systems, browser fingerprinting, and behavior analysis make traditional scraping difficult
+1. **Rapidly changing website structures** - Sites frequently update their DOM structures, breaking static XPath/CSS selectors.
+2. **Unstable selectors** - Class names and IDs often change or use randomly generated values that break scrapers or make scraping these websites difficult.
+3. **Increasingly complex anti-bot measures** - CAPTCHA systems, browser fingerprinting, and behavior analysis make traditional scraping difficult
 and others
 
 But that's only if you are doing targeted Web Scraping for known websites, in which case you can write specific code for every website.
 
 If you start thinking about bigger goals like Broad Scraping or Generic Web Scraping, or what you like to call it, then the above issues intensify, and you will face new issues like:
 
-1. **Extreme Website Diversity** — Generic scraping must handle countless variations in HTML structures, CSS usage, JavaScript frameworks, and backend technologies.
-2. **Identifying Relevant Data** — How does the scraper know what data is important on a page it has never seen before?
-3. **Pagination variations** — Infinite scroll, traditional pagination, "load more" buttons, all requiring different approaches
+1. **Extreme Website Diversity** - Generic scraping must handle countless variations in HTML structures, CSS usage, JavaScript frameworks, and backend technologies.
+2. **Identifying Relevant Data** - How does the scraper know what data is important on a page it has never seen before?
+3. **Pagination variations** - Infinite scroll, traditional pagination, "load more" buttons, all requiring different approaches
 and more
 
 How will you solve that manually? I'm referring to generic web scraping of various websites that don't share any common technologies.
@@ -39,30 +39,30 @@ Unless money is irrelevant to you, you will try to find less expensive approache
 Scrapling can handle almost all issues you will face during Web Scraping, and the following updates will cover the rest carefully.
 
 ### Solving issue T1: Rapidly changing website structures
-That's why the [adaptive](https://scrapling.readthedocs.io/en/latest/parsing/adaptive/) feature was made. You knew I would talk about it, and here we are :)
+That's why the [adaptive](https://scrapling.readthedocs.io/en/latest/parsing/adaptive.html) feature was made. You knew I would talk about it, and here we are :)
 
 While Web Scraping, if you have the `adaptive` feature enabled, you can save any element's unique properties so you can find it again later when the website's structure changes. The most frustrating thing about changes is that anything about an element can change, so there's nothing to rely on. 
 
 That's how the adaptive feature works: it stores everything unique about an element. When the website structure changes, it returns the element with the highest similarity score of the previous element.
 
-I have already explained this in more detail, with many examples. Read more from [here](https://scrapling.readthedocs.io/en/latest/parsing/adaptive/#how-the-adaptive-feature-works).
+I have already explained this in more detail, with many examples. Read more from [here](https://scrapling.readthedocs.io/en/latest/parsing/adaptive.html#how-the-adaptive-feature-works).
 
 ### Solving issue T2: Unstable selectors
 If you have been doing Web scraping for a long enough time, you have likely experienced this once. I'm referring to a website that employs poor design patterns, built on raw HTML without any IDs/classes, or uses random class names with nothing else to rely on, etc...
 
 In these cases, standard selection methods with CSS/XPath selectors won't be optimal, and that's why Scrapling provides three more methods for Selection:
 
-1. [Selection by element content](https://scrapling.readthedocs.io/en/latest/parsing/selection/#text-content-selection): Through text content (`find_by_text`) or regex that matches text content (`find_by_regex`)
-2. [Selecting elements similar to another element](https://scrapling.readthedocs.io/en/latest/parsing/selection/#finding-similar-elements): You find an element, and we will do the rest!
-3. [Selecting elements by filters](https://scrapling.readthedocs.io/en/latest/parsing/selection/#filters-based-searching): You specify conditions/filters that this element must fulfill, we find it!
+1. [Selection by element content](https://scrapling.readthedocs.io/en/latest/parsing/selection.html#text-content-selection): Through text content (`find_by_text`) or regex that matches text content (`find_by_regex`)
+2. [Selecting elements similar to another element](https://scrapling.readthedocs.io/en/latest/parsing/selection.html#finding-similar-elements): You find an element, and we will do the rest!
+3. [Selecting elements by filters](https://scrapling.readthedocs.io/en/latest/parsing/selection.html#filters-based-searching): You specify conditions/filters that this element must fulfill, we find it!
 
 There is no need to explain any of these; click on the links, and it will be clear how Scrapling solves this.
 
 ### Solving issue T3: Increasingly complex anti-bot measures
 It's well known that creating an undetectable spider requires more than residential/mobile proxies and human-like behavior. It also needs a hard-to-detect browser, which Scrapling provides two main options to solve:
 
-1. [DynamicFetcher](https://scrapling.readthedocs.io/en/latest/fetching/dynamic/) — This fetcher provides flexible browser automation with multiple configuration options and little under-the-hood stealth improvements.
-2. [StealthyFetcher](https://scrapling.readthedocs.io/en/latest/fetching/stealthy/) — Because we live in a harsh world and you need to take [full measure instead of half-measures](https://www.youtube.com/watch?v=7BE4QcwX4dU), `StealthyFetcher` was born. This fetcher uses our stealthy browser -- a version of [DynamicFetcher](https://scrapling.readthedocs.io/en/latest/fetching/dynamic/) that nearly bypasses all annoying anti-protections, provides tools to handle the rest, and automatically bypasses all types of Cloudflare's Turnstile/Interstitial!
+1. [DynamicFetcher](https://scrapling.readthedocs.io/en/latest/fetching/dynamic.html) - This fetcher provides flexible browser automation with multiple configuration options and little under-the-hood stealth improvements.
+2. [StealthyFetcher](https://scrapling.readthedocs.io/en/latest/fetching/stealthy.html) - Because we live in a harsh world and you need to take [full measure instead of half-measures](https://www.youtube.com/watch?v=7BE4QcwX4dU), `StealthyFetcher` was born. This fetcher uses our stealthy browser -- a version of [DynamicFetcher](https://scrapling.readthedocs.io/en/latest/fetching/dynamic.html) that nearly bypasses all annoying anti-protections, provides tools to handle the rest, and automatically bypasses all types of Cloudflare's Turnstile/Interstitial!
 
 We keep improving these two with each update, so stay tuned :)
 
@@ -96,7 +96,7 @@ This example illustrates the point I aim to convey here. Not every challenge wil
 ### Solving issue B3: Pagination variations
 This issue, Scrapling currently doesn't have a direct method to automatically extract pagination's URLs for you, but it will be added with the upcoming updates :)
 
-But you can handle most websites if you search for the most common patterns with `page.find_by_text('Next')['href']` or `page.find_by_text('load more')['href']` or selectors like `'a[href*="?page="]'` or `'a[href*="/page/"]'`—you get the idea.
+But you can handle most websites if you search for the most common patterns with `page.find_by_text('Next')['href']` or `page.find_by_text('load more')['href']` or selectors like `'a[href*="?page="]'` or `'a[href*="/page/"]'` - you get the idea.
 
 ## Cost Comparison and Savings
 For a quick comparison.
