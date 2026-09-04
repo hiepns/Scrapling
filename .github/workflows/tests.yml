@@ -7,9 +7,24 @@ on:
     paths-ignore:
       - '*.md'
       - '**/*.md'
-      - 'docs/*'
-      - 'images/*'
-      - '.github/*'
+      - 'docs/**'
+      - 'images/**'
+      - '.github/**'
+      - 'agent-skill/**'
+      - '*.yml'
+      - '*.yaml'
+      - 'ruff.toml'
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - '*.md'
+      - '**/*.md'
+      - 'docs/**'
+      - 'images/**'
+      - '.github/**'
+      - 'agent-skill/**'
       - '*.yml'
       - '*.yaml'
       - 'ruff.toml'
@@ -44,10 +59,10 @@ jobs:
             TOXENV: py313
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
@@ -58,7 +73,7 @@ jobs:
     - name: Install all browsers dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install playwright==1.56.0 patchright==1.56.0
+        python3 -m pip install playwright==1.62.0 patchright==1.62.1
 
     - name: Get Playwright version
       id: playwright-version
@@ -69,7 +84,7 @@ jobs:
 
     - name: Retrieve Playwright browsers from cache if any
       id: playwright-cache
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v5
       with:
         path: |
           ~/.cache/ms-playwright
@@ -90,13 +105,13 @@ jobs:
         fi
         python3 -m playwright install-deps chromium
 
-    # Cache tox environments
-    - name: Cache tox environments
-      uses: actions/cache@v4
+    - name: Retrieve tox environments from cache if any
+      id: tox-cache
+      uses: actions/cache/restore@v5
       with:
         path: .tox
         # Include python version and os in the cache key
-        key: tox-v1-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('/Users/runner/work/Scrapling/pyproject.toml') }}
+        key: tox-v1-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'tox.ini') }}
         restore-keys: |
           tox-v1-${{ runner.os }}-py${{ matrix.python-version }}-
           tox-v1-${{ runner.os }}-
@@ -107,3 +122,20 @@ jobs:
     - name: Run tests
       env: ${{ matrix.env }}
       run: tox
+
+    - name: Save Playwright browsers to cache
+      if: github.ref == 'refs/heads/main' && steps.playwright-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v5
+      with:
+        path: |
+          ~/.cache/ms-playwright
+          ~/Library/Caches/ms-playwright
+          ~/.ms-playwright
+        key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
+
+    - name: Save tox environments to cache
+      if: github.ref == 'refs/heads/main' && steps.tox-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v5
+      with:
+        path: .tox
+        key: ${{ steps.tox-cache.outputs.cache-primary-key }}

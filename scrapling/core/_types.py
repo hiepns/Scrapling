@@ -4,7 +4,6 @@ Type definitions for type checking purposes.
 
 from typing import (
     TYPE_CHECKING,
-    TypedDict,
     TypeAlias,
     cast,
     overload,
@@ -32,7 +31,7 @@ from typing import (
     Coroutine,
     SupportsIndex,
 )
-from typing_extensions import Self, Unpack
+from typing_extensions import Self, Unpack, TypedDict
 
 # Proxy can be a string URL or a dict (Playwright format: {"server": "...", "username": "...", "password": "..."})
 ProxyType = Union[str, Dict[str, str]]
@@ -41,6 +40,7 @@ SelectorWaitStates = Literal["attached", "detached", "hidden", "visible"]
 PageLoadStates = Literal["commit", "domcontentloaded", "load", "networkidle"]
 extraction_types = Literal["text", "html", "markdown"]
 StrOrBytes = Union[str, bytes]
+FollowRedirects = Union[bool, Literal["safe", "all", "obeycode", "firstonly"]]
 
 
 # Copied from `playwright._impl._api_structures.SetCookieParam`

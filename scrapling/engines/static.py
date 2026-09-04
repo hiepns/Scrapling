@@ -19,14 +19,16 @@ from scrapling.core._types import (
     Unpack,
     Optional,
     Awaitable,
+    ProxyType,
     SUPPORTED_HTTP_METHODS,
+    FollowRedirects,
 )
 
 from .toolbelt.custom import Response
 from .toolbelt.convertor import ResponseFactory
 from .toolbelt.proxy_rotation import ProxyRotator, is_proxy_error
 from ._browsers._types import RequestsSession, GetRequestParams, DataRequestParams, ImpersonateType
-from .toolbelt.fingerprints import generate_convincing_referer, generate_headers, __default_useragent__
+from .toolbelt.fingerprints import generate_headers, __default_useragent__
 
 _NO_SESSION: Any = object()
 
@@ -77,7 +79,7 @@ class _ConfigurationLogic(ABC):
         self._default_headers = kwargs.get("headers") or {}
         self._default_retries = kwargs.get("retries", 3)
         self._default_retry_delay = kwargs.get("retry_delay", 1)
-        self._default_follow_redirects = kwargs.get("follow_redirects", True)
+        self._default_follow_redirects = kwargs.get("follow_redirects", "safe")
         self._default_max_redirects = kwargs.get("max_redirects", 30)
         self._default_verify = kwargs.get("verify", True)
         self._default_cert = kwargs.get("cert") or None
@@ -148,6 +150,7 @@ class _ConfigurationLogic(ABC):
             # Browser session params (ignored by HTTP sessions)
             "extra_headers",
             "google_search",
+            "block_ads",
         }
         for k, v in method_kwargs.items():
             if k not in skip_keys and v is not None:
@@ -166,14 +169,14 @@ class _ConfigurationLogic(ABC):
         """
         1. Adds a useragent to the headers if it doesn't have one
         2. Generates real headers and append them to current headers
-        3. Generates a referer header that looks like as if this request came from a Google's search of the current URL's domain.
+        3. Sets a Google referer header.
         """
         # Merge session headers with request headers, request takes precedence (if it was set)
         final_headers = {**self._default_headers, **(headers if headers else {})}
         headers_keys = {k.lower() for k in final_headers}
         if stealth:
             if "referer" not in headers_keys:
-                final_headers["referer"] = generate_convincing_referer(url)
+                final_headers["referer"] = "https://www.google.com/"
 
             if not impersonate_enabled:  # Curl will generate the suitable headers
                 extra_headers = generate_headers(browser_mode=False)
@@ -225,7 +228,8 @@ class _SyncSessionLogic(_ConfigurationLogic):
         stealth = self._stealth if stealth is None else stealth
 
         selector_config = self._get_param(kwargs, "selector_config", self.selector_config) or self.selector_config
-        max_retries = self._get_param(kwargs, "retries", self._default_retries)
+        # Always attempt the request once; `retries` below 1 (or `None`) means "send it, but don't retry"
+        max_retries = max(1, self._get_param(kwargs, "retries", self._default_retries) or 1)
         retry_delay = self._get_param(kwargs, "retry_delay", self._default_retry_delay)
         static_proxy = kwargs.pop("proxy", None)
 
@@ -242,14 +246,16 @@ class _SyncSessionLogic(_ConfigurationLogic):
 
         try:
             for attempt in range(max_retries):
+                proxy: Optional[ProxyType]
                 if self._proxy_rotator and static_proxy is None:
                     proxy = self._proxy_rotator.get_proxy()
                 else:
-                    proxy = static_proxy
+                    proxy = static_proxy or self._default_proxy
 
                 request_args = self._merge_request_args(stealth=stealth, proxy=proxy, **kwargs)
                 try:
                     response = session.request(method, **request_args)
+                    assert response is not None
                     result = ResponseFactory.from_http_request(response, selector_config, meta={"proxy": proxy})
                     return result
                 except CurlError as e:  # pragma: no cover
@@ -284,7 +290,7 @@ class _SyncSessionLogic(_ConfigurationLogic):
             - headers: Headers to include in the request.
             - cookies: Cookies to use in the request.
             - timeout: Number of seconds to wait before timing out.
-            - follow_redirects: Whether to follow redirects. Defaults to True.
+            - follow_redirects: Whether to follow redirects. Defaults to "safe" (rejects redirects to internal/private IPs).
             - max_redirects: Maximum number of redirects. Default 30, use -1 for unlimited.
             - retries: Number of retry attempts. Defaults to 3.
             - retry_delay: Number of seconds to wait between retry attempts. Defaults to 1 second.
@@ -316,7 +322,7 @@ class _SyncSessionLogic(_ConfigurationLogic):
             - headers: Headers to include in the request.
             - cookies: Cookies to use in the request.
             - timeout: Number of seconds to wait before timing out.
-            - follow_redirects: Whether to follow redirects. Defaults to True.
+            - follow_redirects: Whether to follow redirects. Defaults to "safe" (rejects redirects to internal/private IPs).
             - max_redirects: Maximum number of redirects. Default 30, use -1 for unlimited.
             - retries: Number of retry attempts. Defaults to 3.
             - retry_delay: Number of seconds to wait between retry attempts. Defaults to 1 second.
@@ -348,7 +354,7 @@ class _SyncSessionLogic(_ConfigurationLogic):
             - headers: Headers to include in the request.
             - cookies: Cookies to use in the request.
             - timeout: Number of seconds to wait before timing out.
-            - follow_redirects: Whether to follow redirects. Defaults to True.
+            - follow_redirects: Whether to follow redirects. Defaults to "safe" (rejects redirects to internal/private IPs).
             - max_redirects: Maximum number of redirects. Default 30, use -1 for unlimited.
             - retries: Number of retry attempts. Defaults to 3.
             - retry_delay: Number of seconds to wait between retry attempts. Defaults to 1 second.
@@ -380,7 +386,7 @@ class _SyncSessionLogic(_ConfigurationLogic):
             - headers: Headers to include in the request.
             - cookies: Cookies to use in the request.
             - timeout: Number of seconds to wait before timing out.
-            - follow_redirects: Whether to follow redirects. Defaults to True.
+            - follow_redirects: Whether to follow redirects. Defaults to "safe" (rejects redirects to internal/private IPs).
             - max_redirects: Maximum number of redirects. Default 30, use -1 for unlimited.
             - retries: Number of retry attempts. Defaults to 3.
             - retry_delay: Number of seconds to wait between retry attempts. Defaults to 1 second.
@@ -438,7 +444,8 @@ class _ASyncSessionLogic(_ConfigurationLogic):
         stealth = self._stealth if stealth is None else stealth
 
         selector_config = self._get_param(kwargs, "selector_config", self.selector_config) or self.selector_config
-        max_retries = self._get_param(kwargs, "retries", self._default_retries)
+        # Always attempt the request once; `retries` below 1 (or `None`) means "send it, but don't retry"
+        max_retries = max(1, self._get_param(kwargs, "retries", self._default_retries) or 1)
         retry_delay = self._get_param(kwargs, "retry_delay", self._default_retry_delay)
         static_proxy = kwargs.pop("proxy", None)
 
@@ -458,10 +465,11 @@ class _ASyncSessionLogic(_ConfigurationLogic):
         try:
             # Determine if we should use proxy rotation
             for attempt in range(max_retries):
+                proxy: Optional[ProxyType]
                 if self._proxy_rotator and static_proxy is None:
                     proxy = self._proxy_rotator.get_proxy()
                 else:
-                    proxy = static_proxy
+                    proxy = static_proxy or self._default_proxy
 
                 request_args = self._merge_request_args(stealth=stealth, proxy=proxy, **kwargs)
                 try:
@@ -501,7 +509,7 @@ class _ASyncSessionLogic(_ConfigurationLogic):
             - headers: Headers to include in the request.
             - cookies: Cookies to use in the request.
             - timeout: Number of seconds to wait before timing out.
-            - follow_redirects: Whether to follow redirects. Defaults to True.
+            - follow_redirects: Whether to follow redirects. Defaults to "safe" (rejects redirects to internal/private IPs).
             - max_redirects: Maximum number of redirects. Default 30, use -1 for unlimited.
             - retries: Number of retry attempts. Defaults to 3.
             - retry_delay: Number of seconds to wait between retry attempts. Defaults to 1 second.
@@ -533,7 +541,7 @@ class _ASyncSessionLogic(_ConfigurationLogic):
             - headers: Headers to include in the request.
             - cookies: Cookies to use in the request.
             - timeout: Number of seconds to wait before timing out.
-            - follow_redirects: Whether to follow redirects. Defaults to True.
+            - follow_redirects: Whether to follow redirects. Defaults to "safe" (rejects redirects to internal/private IPs).
             - max_redirects: Maximum number of redirects. Default 30, use -1 for unlimited.
             - retries: Number of retry attempts. Defaults to 3.
             - retry_delay: Number of seconds to wait between retry attempts. Defaults to 1 second.
@@ -565,7 +573,7 @@ class _ASyncSessionLogic(_ConfigurationLogic):
             - headers: Headers to include in the request.
             - cookies: Cookies to use in the request.
             - timeout: Number of seconds to wait before timing out.
-            - follow_redirects: Whether to follow redirects. Defaults to True.
+            - follow_redirects: Whether to follow redirects. Defaults to "safe" (rejects redirects to internal/private IPs).
             - max_redirects: Maximum number of redirects. Default 30, use -1 for unlimited.
             - retries: Number of retry attempts. Defaults to 3.
             - retry_delay: Number of seconds to wait between retry attempts. Defaults to 1 second.
@@ -597,7 +605,7 @@ class _ASyncSessionLogic(_ConfigurationLogic):
             - headers: Headers to include in the request.
             - cookies: Cookies to use in the request.
             - timeout: Number of seconds to wait before timing out.
-            - follow_redirects: Whether to follow redirects. Defaults to True.
+            - follow_redirects: Whether to follow redirects. Defaults to "safe" (rejects redirects to internal/private IPs).
             - max_redirects: Maximum number of redirects. Default 30, use -1 for unlimited.
             - retries: Number of retry attempts. Defaults to 3.
             - retry_delay: Number of seconds to wait between retry attempts. Defaults to 1 second.
@@ -662,7 +670,7 @@ class FetcherSession:
         headers: Optional[Dict[str, str]] = None,
         retries: Optional[int] = 3,
         retry_delay: Optional[int] = 1,
-        follow_redirects: bool = True,
+        follow_redirects: FollowRedirects = "safe",
         max_redirects: int = 30,
         verify: bool = True,
         cert: Optional[str | Tuple[str, str]] = None,
@@ -672,7 +680,7 @@ class FetcherSession:
         """
         :param impersonate: Browser version to impersonate. Can be a single browser string or a list of browser strings for random selection. (Default: latest available Chrome version)
         :param http3: Whether to use HTTP3. Defaults to False. It might be problematic if used it with `impersonate`.
-        :param stealthy_headers: If enabled (default), it creates and adds real browser headers. It also sets the referer header as if this request came from a Google search of URL's domain.
+        :param stealthy_headers: If enabled (default), it creates and adds real browser headers. It also sets a Google referer header.
         :param proxies: Dict of proxies to use. Format: {"http": proxy_url, "https": proxy_url}.
         :param proxy: Proxy URL to use. Format: "http://username:password@localhost:8030".
                      Cannot be used together with the `proxies` parameter.
@@ -681,7 +689,7 @@ class FetcherSession:
         :param headers: Headers to include in the session with every request.
         :param retries: Number of retry attempts. Defaults to 3.
         :param retry_delay: Number of seconds to wait between retry attempts. Defaults to 1 second.
-        :param follow_redirects: Whether to follow redirects. Defaults to True.
+        :param follow_redirects: Whether to follow redirects. Defaults to "safe", which follows redirects but rejects those targeting internal/private IPs (SSRF protection). Pass True to follow all redirects without restriction.
         :param max_redirects: Maximum number of redirects. Default 30, use -1 for unlimited.
         :param verify: Whether to verify HTTPS certificates. Defaults to True.
         :param cert: Tuple of (cert, key) filenames for the client certificate.
@@ -716,8 +724,13 @@ class FetcherSession:
             config["selector_config"] = self.selector_config
             config["proxy_rotator"] = self._proxy_rotator
             self._client = _SyncSessionLogic(**config)
+            try:
+                result = self._client.__enter__()
+            except Exception:
+                self._client = None
+                raise
             self._is_alive = True
-            return self._client.__enter__()
+            return result
         raise RuntimeError("This FetcherSession instance already has an active synchronous session.")
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -737,8 +750,13 @@ class FetcherSession:
             config["selector_config"] = self.selector_config
             config["proxy_rotator"] = self._proxy_rotator
             self._client = _ASyncSessionLogic(**config)
+            try:
+                result = await self._client.__aenter__()
+            except Exception:
+                self._client = None
+                raise
             self._is_alive = True
-            return await self._client.__aenter__()
+            return result
         raise RuntimeError("This FetcherSession instance already has an active asynchronous session.")
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
